@@ -19,7 +19,7 @@ services:
       - traefik.http.routers.api.priority=100
       - traefik.http.services.api.loadbalancer.server.port=8080
     env_file:
-      - .env.api
+      - ./.env.api
     depends_on:
       - postgres
       - redis
@@ -28,7 +28,7 @@ services:
     image: ghcr.io/sportgroup-hq/auth:main
     restart: unless-stopped
     env_file:
-      - .env.auth
+      - ./.env.auth
     labels:
       - traefik.enable=true
       - traefik.http.routers.auth.rule=PathPrefix(`/api/v1/auth`)
@@ -49,7 +49,7 @@ services:
       - POSTGRES_PORT=${POSTGRES_PORT:?err}
       - POSTGRES_DB=${POSTGRES_DB:?err}
     env_file:
-      - .env.postgres
+      - ./.env.postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -59,7 +59,7 @@ services:
     profiles: [ "migrate" ]
     command: -source github://${GITHUB_USER}:${GITHUB_TOKEN}@sportgroup-hq/api/migrations -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/sportgroup_api?sslmode=disable" -verbose up
     env_file:
-      - .env.postgres
+      - ./.env.postgres
     depends_on:
       - postgres
     volumes:
@@ -72,7 +72,7 @@ services:
     profiles: [ "migrate" ]
     command: -source github://${GITHUB_USER}:${GITHUB_TOKEN}@sportgroup-hq/auth/migrations -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/sportgroup_auth?sslmode=disable" -verbose up
     env_file:
-      - .env.postgres
+      - ./.env.postgres
     depends_on:
       - postgres
     volumes:
@@ -82,7 +82,7 @@ services:
     image: redis:latest
     restart: unless-stopped
     env_file:
-      - .env.redis
+      - ./.env.redis
     volumes:
       - redis:/root/redis
     environment:
