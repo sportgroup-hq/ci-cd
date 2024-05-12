@@ -1,0 +1,94 @@
+version: '3.9'
+
+services:
+  traefik:
+    image: traefik:v3.0
+    restart: unless-stopped
+    command: --providers.docker --providers.docker.exposedbydefault=false --log.level=DEBUG
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  api:
+    image: ghcr.io/sportgroup-hq/api:main
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=PathPrefix(`/api/v1/`) || PathPrefix(`/swagger`) || PathPrefix(`/swagger-docs`)
+      - traefik.http.routers.api.priority=100
+      - traefik.http.services.api.loadbalancer.server.port=8080
+    env_file:
+      - .env.api
+    depends_on:
+      - postgres
+      - redis
+
+  auth:
+    image: ghcr.io/sportgroup-hq/auth:main
+    restart: unless-stopped
+    env_file:
+      - .env.auth
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.auth.rule=PathPrefix(`/api/v1/auth`)
+      - traefik.http.routers.auth.priority=200
+      - traefik.http.services.auth.loadbalancer.server.port=8180
+    depends_on:
+      - api
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:16.2
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:?err}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?err}
+      - POSTGRES_HOST=${POSTGRES_HOST:?err}
+      - POSTGRES_PORT=${POSTGRES_PORT:?err}
+      - POSTGRES_DB=${POSTGRES_DB:?err}
+    env_file:
+      - .env.postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  migrate_api:
+    image: migrate/migrate:v4.17.1
+    restart: "no"
+    profiles: [ "migrate" ]
+    command: -source github://${GITHUB_USER}:${GITHUB_TOKEN}@sportgroup-hq/api/migrations -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/sportgroup_api?sslmode=disable" -verbose up
+    env_file:
+      - .env.postgres
+    depends_on:
+      - postgres
+    volumes:
+      - ./api/migrations:/root/migrations
+
+# before first startup `auth` database must be created
+  migrate_auth:
+    image: migrate/migrate:v4.17.1
+    restart: "no"
+    profiles: [ "migrate" ]
+    command: -source github://${GITHUB_USER}:${GITHUB_TOKEN}@sportgroup-hq/auth/migrations -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/sportgroup_auth?sslmode=disable" -verbose up
+    env_file:
+      - .env.postgres
+    depends_on:
+      - postgres
+    volumes:
+      - ./api/migrations:/root/migrations
+
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    env_file:
+      - .env.redis
+    volumes:
+      - redis:/root/redis
+    environment:
+      - REDIS_PASSWORD=lpGpc2HQkAIFyVvk7ubuCEjUPmWgAdKLJr51oZ
+      - REDIS_PORT=6379
+
+volumes:
+  postgres_data:
+  redis:
